@@ -1,0 +1,115 @@
+------------------------------------------------------------------------------------------------------------------------
+Steps To Set Up the Testbed
+------------------------------------------------------------------------------------------------------------------------
+ 
+Step 1:- Build OAI RAN
+
+--> sudo -i
+--> git clone --branch 2021.w46-powder --depth 1 https://gitlab.flux.utah.edu/powder-mirror/openairinterface5g ~/openairinterface5g
+--> cd ~/openairinterface5g
+--> source oaienv
+--> cd cmake_targets/
+--> export BUILD_UHD_FROM_SOURCE=True
+--> export UHD_VERSION=3.15.0.0
+--> ./build_oai -I -w USRP
+--> ./build_oai --gNB --nrUE -w SIMU --build-lib nrscope --ninja
+
+
+
+Step 2: Start the "minimal" OAI 5G core network deployment
+
+--> sudo sysctl net.ipv4.conf.all.forwarding=1
+--> sudo iptables -P FORWARD ACCEPT
+--> cd /opt/oai-cn5g-fed/docker-compose
+--> sudo python3 ./core-network.py --type start-mini --fqdn no --scenario 1
+--> sudo docker logs -f oai-amf
+
+
+
+Step 3:- Start the monolithic gNodeB
+
+--> cd ~/openairinterface5g/cmake_targets
+
+*Assign 16 cores to GNB process and start the GNB
+--> sudo RFSIMULATOR=server taskset -c 0-15 ./ran_build/build/nr-softmodem --rfsim --sa     -O /local/repository/etc/gnb.conf
+
+
+
+Step 4: Create Name Space for 3 UE's such that it starts and connects to GNB
+
+For UE1:
+
+--> sudo ip netns add ue1
+--> sudo ip link add v-eth1 type veth peer name v-ue1
+--> sudo ip link set v-ue1 netns ue1
+--> sudo ip addr add 10.201.1.1/24 dev v-eth1 
+--> sudo ip link set v-eth1 up 
+--> sudo iptables -t nat -A POSTROUTING -s 10.201.1.0/255.255.255.0 -o eno1 -j MASQUERADE 
+--> sudo iptables -A FORWARD -i eno1 -o v-eth1 -j ACCEPT 
+--> sudo iptables -A FORWARD -o en01 -i v-eth1 -j ACCEPT 
+--> sudo ip netns exec ue1 ip link set dev lo up 
+--> sudo ip netns exec ue1 ip addr add 10.201.1.2/24 dev v-ue1 
+--> sudo ip netns exec ue1 ip link set v-ue1 up 
+--> sudo ip netns exec ue1 bash
+
+*Start ue1 by assigning only 1 core to it
+
+--> cd ~/openairinterface5g/cmake_targets
+--> sudo RFSIMULATOR=10.201.1.1 taskset -c 16 ./ran_build/build/nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000    --rfsim --sa --nokrnmod -O /local/repository/etc/ue.conf
+
+For UE2:
+
+--> sudo ip netns add ue2
+--> sudo ip link add v-eth2 type veth peer name v-ue2
+--> sudo ip link set v-ue2 netns ue2
+--> sudo ip addr add 10.202.1.1/24 dev v-eth2 
+--> sudo ip link set v-eth2 up 
+--> sudo iptables -t nat -A POSTROUTING -s 10.202.1.0/255.255.255.0 -o eno1 -j MASQUERADE 
+--> sudo iptables -A FORWARD -i eno1 -o v-eth2 -j ACCEPT 
+--> sudo iptables -A FORWARD -o en01 -i v-eth2 -j ACCEPT 
+--> sudo ip netns exec ue2 ip link set dev lo up 
+--> sudo ip netns exec ue2 ip addr add 10.202.1.2/24 dev v-ue2 
+--> sudo ip netns exec ue2 ip link set v-ue2 up 
+--> sudo ip netns exec ue2 bash
+
+*Start ue2 by assigning only 1 core to it
+
+--> cd ~/openairinterface5g/cmake_targets
+--> sudo RFSIMULATOR=10.202.1.1 taskset -c 17 ./ran_build/build/nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000    --rfsim --sa --nokrnmod -O /local/repository/etc/ue.conf
+
+
+
+
+For UE3:
+
+--> sudo ip netns add ue3
+--> sudo ip link add v-eth3 type veth peer name v-ue3
+--> sudo ip link set v-ue3 netns ue3
+--> sudo ip addr add 10.203.1.1/24 dev v-eth3 
+--> sudo ip link set v-eth3 up 
+--> sudo iptables -t nat -A POSTROUTING -s 10.203.1.0/255.255.255.0 -o eno1 -j MASQUERADE 
+--> sudo iptables -A FORWARD -i eno1 -o v-eth3 -j ACCEPT 
+--> sudo iptables -A FORWARD -o en01 -i v-eth3 -j ACCEPT 
+--> sudo ip netns exec ue3 ip link set dev lo up 
+--> sudo ip netns exec ue3 ip addr add 10.203.1.2/24 dev v-ue3 
+--> sudo ip netns exec ue3 ip link set v-ue3 up 
+--> sudo ip netns exec ue3 bash
+
+*Start ue3 by assigning only 1 core to it
+
+--> cd ~/openairinterface5g/cmake_targets
+--> sudo RFSIMULATOR=10.203.1.1 taskset -c 18 ./ran_build/build/nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000    --rfsim --sa --nokrnmod -O /local/repository/etc/ue.conf
+
+
+#CPU monitoring tool
+
+--> pip install s-tui
+
+sudo s-tui
+
+
+sudo apt-get install -y linux-tools-4.15.0-159-generic
+
+sudo apt install linux-tools-common linux-tools-generic schedtool
+
+while true; do taskset -p -c -a 23731 sleep 1  # Delay in seconds done
